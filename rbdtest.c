@@ -1,4 +1,5 @@
 #include <sys/time.h>
+#include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -177,11 +178,35 @@ getint(const char *s)
 	char *ep = NULL;
 	int i;
 	long l;
+	long scale;
 	
 	l = strtol(s, &ep, 0);
-	if (ep == NULL || *ep != '\0') {
+	if (ep == NULL) {
 		fprintf(stderr, "Bad number: %s\n", s);
 		exit(2);
+	}
+	if (*ep != '\0') {
+		if (ep[1] == '\0') {
+			scale = 1;
+			switch (toupper(*ep)) {
+			case 'T':
+				scale *= 1024;
+			case 'G':
+				scale *= 1024;
+			case 'M':
+				scale *= 1024;
+			case 'K':
+				scale *= 1024;
+				break;
+			default:
+				fprintf(stderr, "Bad scale: %s\n", ep);
+				exit(2);
+			}
+			l *= scale;
+		} else {
+			fprintf(stderr, "Bad number: %s\n", s);
+			exit(2);
+		}
 	}
 	i = l;
 	if (i != l) {
