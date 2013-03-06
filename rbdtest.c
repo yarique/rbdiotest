@@ -29,6 +29,7 @@ rbd_image_t ih;
 
 int dotest(void);
 long getint(const char *s);
+int syncloop(char *buf, uint64_t *offset);
 void usage(void);
 
 int
@@ -142,7 +143,6 @@ dotest()
 	long i;
 	long long dt;
 	uint64_t offset;
-	int64_t rc;
 
 	buf = malloc(blocksize);
 	if (buf == NULL) {
@@ -160,21 +160,8 @@ dotest()
 		    writemode ? "write" : "read", count, blocksize);
 	offset = 0;
 	gettimeofday(&tv0, NULL);
-	for (i = 0; i < count; i++) {
-		if (writemode)
-			rc = rbd_write(ih, offset, blocksize, buf);
-		else
-			rc = rbd_read(ih, offset, blocksize, buf);
-
-		/* no reason to tolerate short ios */
-		if (rc < 0 || (uint64_t)rc != (uint64_t)blocksize) {
-			fprintf(stderr, "rbd io returned %"PRId64" (%s)\n",
-			    rc, rc < 0 ? strerror(-rc) : "short io");
-			return (-1);
-		}
-
-		offset += rc;
-	}
+	if (syncloop(buf, &offset) < 0)
+		return (-1);
 	gettimeofday(&tv, NULL);
 	dt = 1000000LL * (tv.tv_sec - tv0.tv_sec) + tv.tv_usec - tv0.tv_usec;
 	printf("Time elapsed: %lld usec\n", dt);
@@ -184,6 +171,32 @@ dotest()
 	else
 		printf("IO rate would be %s!\n",
 		    dt == 0 ? "infinity" : "negative");
+
+	return (0);
+}
+
+/* synchronous IO based implementation */
+int
+syncloop(char *buf, uint64_t *offset)
+{
+	long i;
+	int64_t rc;
+
+	for (i = 0; i < count; i++) {
+		if (writemode)
+			rc = rbd_write(ih, *offset, blocksize, buf);
+		else
+			rc = rbd_read(ih, *offset, blocksize, buf);
+
+		/* no reason to tolerate short ios */
+		if (rc < 0 || (uint64_t)rc != (uint64_t)blocksize) {
+			fprintf(stderr, "rbd io returned %"PRId64" (%s)\n",
+			    rc, rc < 0 ? strerror(-rc) : "short io");
+			return (-1);
+		}
+
+		*offset += rc;
+	}
 
 	return (0);
 }
