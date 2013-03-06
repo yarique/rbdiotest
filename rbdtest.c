@@ -13,8 +13,8 @@
 #include <rbd/librbd.h>
 
 /* configuration */
-int blocksize = 512;
-int count = 10;
+long blocksize = 512;
+long count = 10;
 char *imagename;
 char *poolname = "rbd";
 int verbose = 1;
@@ -26,7 +26,7 @@ rados_ioctx_t ioctx;
 rbd_image_t ih;
 
 int dotest(void);
-int getint(const char *s);
+long getint(const char *s);
 void usage(void);
 
 int
@@ -117,7 +117,7 @@ dotest()
 {
 	struct timeval tv, tv0;
 	char *buf;
-	int i;
+	long i;
 	long long dt;
 	uint64_t offset;
 	int64_t rc;
@@ -134,7 +134,7 @@ dotest()
 			buf[i] = random();
 	}
 	if (verbose)
-		printf("Start %s IO loop with %d cycles, %d bytes per each\n",
+		printf("Start %s IO loop with %ld cycles, %ld bytes per each\n",
 		    writemode ? "write" : "read", count, blocksize);
 	offset = 0;
 	gettimeofday(&tv0, NULL);
@@ -173,15 +173,15 @@ usage()
 	exit(2);
 }
 
-int
+long
 getint(const char *s)
 {
 	char *ep = NULL;
-	int i;
-	long l;
-	long scale;
-	
-	l = strtol(s, &ep, 0);
+	long rv;
+	intmax_t j;
+	intmax_t scale;
+
+	j = strtoimax(s, &ep, 0);
 	if (ep == NULL) {
 		fprintf(stderr, "Bad number: %s\n", s);
 		exit(2);
@@ -203,16 +203,16 @@ getint(const char *s)
 				fprintf(stderr, "Bad scale: %s\n", ep);
 				exit(2);
 			}
-			l *= scale;
+			j *= scale;
 		} else {
 			fprintf(stderr, "Bad number: %s\n", s);
 			exit(2);
 		}
 	}
-	i = l;
-	if (i != l) {
+	rv = j;
+	if (rv != j) {
 		fprintf(stderr, "Number out of range: %s\n", s);
 		exit(2);
 	}
-	return (i);
+	return (rv);
 }
