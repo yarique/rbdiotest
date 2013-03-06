@@ -12,6 +12,7 @@ int blocksize = 512;
 int count = 10;
 char *imagename;
 char *poolname = "rbd";
+int verbose = 1;
 int writemode = 0;
 
 /* runtime */
@@ -60,6 +61,8 @@ main(int argc, char **argv)
 		fprintf(stderr, "rados_create: %s\n", strerror(-rc));
 		exit(2);
 	}
+	if (verbose)
+		printf("Created cluster\n");
 	rc = rados_conf_read_file(cluster, NULL);
 	if (rc < 0) {
 		fprintf(stderr, "rados_conf_read_file: %s\n", strerror(-rc));
@@ -70,23 +73,33 @@ main(int argc, char **argv)
 		fprintf(stderr, "rados_connect: %s\n", strerror(-rc));
 		exit(2);
 	}
+	if (verbose)
+		printf("Connected cluster\n");
 	rc = rados_ioctx_create(cluster, poolname, &ioctx);
 	if (rc < 0) {
 		fprintf(stderr, "rados_ioctx_create: %s\n", strerror(-rc));
 		goto cleanup2;
 	}
+	if (verbose)
+		printf("Created io context for pool '%s'\n", poolname);
 	rc = rbd_open(ioctx, imagename, &ih, NULL);
 	if (rc < 0) {
 		fprintf(stderr, "rbd_open: %s\n", strerror(-rc));
 		goto cleanup1;
 	}
+	if (verbose)
+		printf("Opened rbd image '%s'\n", imagename);
 
 	rc = dotest();
 
 cleanup1:
 	rados_ioctx_destroy(ioctx);
+	if (verbose)
+		printf("Destroyed io context\n");
 cleanup2:
 	rados_shutdown(cluster);
+	if (verbose)
+		printf("Shut down cluster\n");
 
 	exit(rc < 0 ? 2 : 0);
 }
