@@ -17,13 +17,13 @@ main(int argc, char **argv)
 {
 	int c;
 
-	while ((c = getopt(argc, argv, "c:b:w")) != -1) {
+	while ((c = getopt(argc, argv, "b:c:w")) != -1) {
 		switch (c) {
-		case 'c':
-			count = getint(optarg);
-			break;
 		case 'b':
 			blocksize = getint(optarg);
+			break;
+		case 'c':
+			count = getint(optarg);
 			break;
 		case 'w':
 			writemode = 1;
