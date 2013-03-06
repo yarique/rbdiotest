@@ -129,6 +129,7 @@ dotest()
 		for (i = 0; i < blocksize; i++)
 			buf[i] = random();
 	}
+	offset = 0;
 	for (i = 0; i < count; i++) {
 		if (writemode)
 			rc = rbd_write(ih, offset, blocksize, buf);
