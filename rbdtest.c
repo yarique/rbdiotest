@@ -95,6 +95,9 @@ main(int argc, char **argv)
 
 	rc = dotest();
 
+	rbd_close(ih);
+	if (verbose)
+		printf("Closed rbd image\n");
 cleanup1:
 	rados_ioctx_destroy(ioctx);
 	if (verbose)
