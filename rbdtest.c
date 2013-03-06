@@ -134,7 +134,8 @@ dotest()
 			buf[i] = random();
 	}
 	if (verbose)
-		printf("Start IO loop\n");
+		printf("Start %s IO loop with %d cycles, %d bytes per each\n",
+		    writemode ? "write" : "read", count, blocksize);
 	offset = 0;
 	gettimeofday(&tv0, NULL);
 	for (i = 0; i < count; i++) {
