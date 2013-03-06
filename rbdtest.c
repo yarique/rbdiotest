@@ -81,6 +81,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "rados_conf_read_file: %s\n", strerror(-rc));
 		exit(2);
 	}
+
 	if (readcache || writecache) {
 		rc = rados_conf_set(cluster, "rbd_cache", "true");
 		if (!(rc < 0) && !writecache)
@@ -91,6 +92,9 @@ main(int argc, char **argv)
 		fprintf(stderr, "cache control: %s\n", strerror(-rc));
 		exit(2);
 	}
+	if (verbose)
+		printf("RBD cache read %d write %d\n", readcache, writecache);
+
 	rc = rados_connect(cluster);
 	if (rc < 0) {
 		fprintf(stderr, "rados_connect: %s\n", strerror(-rc));
