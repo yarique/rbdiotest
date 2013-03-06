@@ -113,6 +113,7 @@ dotest()
 	char *buf;
 	int i;
 	uint64_t offset;
+	int64_t rc;
 
 	buf = malloc(blocksize);
 	if (buf == NULL) {
@@ -120,10 +121,24 @@ dotest()
 		return (-1);
 	}
 	if (writemode) {
+		/* fill the buffer with random data */
 		srandom(time(NULL) % getpid());
-		for (i = 0; i < blocksize; i++) {
+		for (i = 0; i < blocksize; i++)
 			buf[i] = random();
+	}
+	for (i = 0; i < count; i++) {
+		if (writemode)
+			rc = rbd_write(ih, offset, blocksize, buf);
+		else
+			rc = rbd_read(ih, offset, blocksize, buf);
+
+		/* no reason to tolerate short ios */
+		if (rc < 0 || (uint64_t)rc != (uint64_t)blocksize) {
+			fprintf(stderr, "rbd io returned %"PRId64"\n", rc);
+			return (-1);
 		}
+
+		offset += rc;
 	}
 	return (0);
 }
