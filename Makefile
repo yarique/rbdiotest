@@ -1,3 +1,4 @@
+CFLAGS+=	-Wall -W
 LDLIBS+=	-lrados -lrbd
 
 all:	rbdtest
