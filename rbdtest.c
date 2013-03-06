@@ -17,7 +17,9 @@ long blocksize = 512;
 long count = 10;
 char *imagename;
 char *poolname = "rbd";
+int readcache = 0;
 int verbose = 1;
+int writecache = 0;
 int writemode = 0;
 
 /* runtime */
@@ -35,8 +37,14 @@ main(int argc, char **argv)
 	int c;
 	int rc;
 
-	while ((c = getopt(argc, argv, "b:c:i:p:w")) != -1) {
+	while ((c = getopt(argc, argv, "RWb:c:i:p:w")) != -1) {
 		switch (c) {
+		case 'R':
+			readcache = 1;
+			break;
+		case 'W':
+			writecache = 1;
+			break;
 		case 'b':
 			blocksize = getint(optarg);
 			break;
@@ -71,6 +79,16 @@ main(int argc, char **argv)
 	rc = rados_conf_read_file(cluster, NULL);
 	if (rc < 0) {
 		fprintf(stderr, "rados_conf_read_file: %s\n", strerror(-rc));
+		exit(2);
+	}
+	if (readcache || writecache) {
+		rc = rados_conf_set(cluster, "rbd_cache", "true");
+		if (!(rc < 0) && !writecache)
+			rc = rados_conf_set(cluster, "rbd_cache_max_dirty", "0");
+	} else
+		rc = rados_conf_set(cluster, "rbd_cache", "false");
+	if (rc < 0) {
+		fprintf(stderr, "cache control: %s\n", strerror(-rc));
 		exit(2);
 	}
 	rc = rados_connect(cluster);
