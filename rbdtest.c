@@ -137,7 +137,8 @@ dotest()
 
 		/* no reason to tolerate short ios */
 		if (rc < 0 || (uint64_t)rc != (uint64_t)blocksize) {
-			fprintf(stderr, "rbd io returned %"PRId64"\n", rc);
+			fprintf(stderr, "rbd io returned %"PRId64" (%s)\n",
+			    rc, rc < 0 ? strerror(-rc) : "short io");
 			return (-1);
 		}
 
