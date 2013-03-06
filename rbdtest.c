@@ -19,6 +19,7 @@ rados_t cluster;
 rados_ioctx_t ioctx;
 rbd_image_t ih;
 
+int dotest(void);
 int getint(const char *s);
 void usage(void);
 
@@ -72,15 +73,28 @@ main(int argc, char **argv)
 	rc = rados_ioctx_create(cluster, poolname, &ioctx);
 	if (rc < 0) {
 		fprintf(stderr, "rados_ioctx_create: %s\n", strerror(-rc));
-		exit(2);
+		goto cleanup2;
 	}
 	rc = rbd_open(ioctx, imagename, &ih, NULL);
 	if (rc < 0) {
 		fprintf(stderr, "rbd_open: %s\n", strerror(-rc));
-		exit(2);
+		goto cleanup1;
 	}
 
-	exit(0);
+	rc = dotest();
+
+cleanup1:
+	rados_ioctx_destroy(ioctx);
+cleanup2:
+	rados_shutdown(cluster);
+
+	exit(rc < 0 ? 2 : 0);
+}
+
+int
+dotest()
+{
+	return (0);
 }
 
 void
