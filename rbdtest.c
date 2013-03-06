@@ -1,7 +1,10 @@
 #include <errno.h>
+#include <inttypes.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <rados/librados.h>
@@ -107,6 +110,21 @@ cleanup2:
 int
 dotest()
 {
+	char *buf;
+	int i;
+	uint64_t offset;
+
+	buf = malloc(blocksize);
+	if (buf == NULL) {
+		fprintf(stderr, "Out of memory\n");
+		return (-1);
+	}
+	if (writemode) {
+		srandom(time(NULL) % getpid());
+		for (i = 0; i < blocksize; i++) {
+			buf[i] = random();
+		}
+	}
 	return (0);
 }
 
