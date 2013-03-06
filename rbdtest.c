@@ -5,7 +5,7 @@
 #include <rados/librados.h>
 #include <rbd/librbd.h>
 
-int bsize = 512;
+int blocksize = 512;
 int count = 10;
 int writemode = 0;
 
@@ -23,7 +23,7 @@ main(int argc, char **argv)
 			count = getint(optarg);
 			break;
 		case 'b':
-			bsize = getint(optarg);
+			blocksize = getint(optarg);
 			break;
 		case 'w':
 			writemode = 1;
