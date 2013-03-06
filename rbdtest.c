@@ -1,3 +1,4 @@
+#include <sys/time.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -113,8 +114,10 @@ cleanup2:
 int
 dotest()
 {
+	struct timeval tv, tv0;
 	char *buf;
 	int i;
+	long long dt;
 	uint64_t offset;
 	int64_t rc;
 
@@ -129,7 +132,10 @@ dotest()
 		for (i = 0; i < blocksize; i++)
 			buf[i] = random();
 	}
+	if (verbose)
+		printf("Start IO loop\n");
 	offset = 0;
+	gettimeofday(&tv0, NULL);
 	for (i = 0; i < count; i++) {
 		if (writemode)
 			rc = rbd_write(ih, offset, blocksize, buf);
@@ -145,6 +151,16 @@ dotest()
 
 		offset += rc;
 	}
+	gettimeofday(&tv, NULL);
+	dt = 1000000LL * (tv.tv_sec - tv0.tv_sec) + tv.tv_usec - tv0.tv_usec;
+	printf("Time elapsed: %lld usec\n", dt);
+	if (dt > 0)
+		printf("IO rate: %ju byte/s\n",
+		    (uintmax_t)offset * 1000000 / (uintmax_t)dt);
+	else
+		printf("IO rate would be %s!\n",
+		    dt == 0 ? "infinity" : "negative");
+
 	return (0);
 }
 
