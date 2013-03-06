@@ -7,6 +7,8 @@
 
 int blocksize = 512;
 int count = 10;
+char *image;
+char *pool = "rbd";
 int writemode = 0;
 
 int getint(const char *s);
@@ -17,7 +19,7 @@ main(int argc, char **argv)
 {
 	int c;
 
-	while ((c = getopt(argc, argv, "b:c:w")) != -1) {
+	while ((c = getopt(argc, argv, "b:c:i:p:w")) != -1) {
 		switch (c) {
 		case 'b':
 			blocksize = getint(optarg);
@@ -25,12 +27,22 @@ main(int argc, char **argv)
 		case 'c':
 			count = getint(optarg);
 			break;
+		case 'i':
+			image = optarg;
+			break;
+		case 'p':
+			pool = optarg;
+			break;
 		case 'w':
 			writemode = 1;
 			break;
 		default:
 			usage();
 		}
+	}
+	if (image == NULL) {
+		fprintf(stderr, "Need image name\n");
+		exit(2);
 	}
 }
 
