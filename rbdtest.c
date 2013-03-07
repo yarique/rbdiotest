@@ -223,7 +223,11 @@ aioloop(char *buf, uint64_t *offset)
 		*offset += rc;
 	}
 
+	if (verbose)
+		printf("Now waiting for all AIO to complete\n");
 	rbd_flush(ih);
+	if (verbose)
+		printf("All AIO complete\n");
 
 	return (0);
 }
