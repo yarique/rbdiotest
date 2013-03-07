@@ -18,6 +18,7 @@ long blocksize = 512;
 long count = 10;
 char *imagename;
 int iomode = 'S';
+long maxqlen;
 char *poolname = "rbd";
 int readcache = 0;
 int verbose = 0;
@@ -47,7 +48,7 @@ main(int argc, char **argv)
 	int c;
 	int rc;
 
-	while ((c = getopt(argc, argv, "RWb:c:i:m:p:vw")) != -1) {
+	while ((c = getopt(argc, argv, "RWb:c:i:m:p:q:vw")) != -1) {
 		switch (c) {
 		case 'R':
 			readcache = 1;
@@ -69,6 +70,9 @@ main(int argc, char **argv)
 			break;
 		case 'p':
 			poolname = optarg;
+			break;
+		case 'q':
+			maxqlen = getint(optarg);
 			break;
 		case 'v':
 			verbose++;
@@ -229,6 +233,18 @@ aioloop(char *buf, uint64_t *offset)
 			return (-1);
 		}
 
+		pthread_mutex_lock(&aio_inflight_mtx);
+		if (maxqlen > 0) {
+			for (;;) {
+				if (aio_inflight < maxqlen)
+					break;
+				pthread_cond_wait(&aio_inflight_cond,
+				    &aio_inflight_mtx);
+			}
+		}
+		aio_inflight++;
+		pthread_mutex_unlock(&aio_inflight_mtx);
+
 		if (writemode)
 			rc = rbd_aio_write(ih, *offset, blocksize, buf, c);
 		else
@@ -238,10 +254,6 @@ aioloop(char *buf, uint64_t *offset)
 			fprintf(stderr, "rbd_aio: %s\n", strerror(-rc));
 			return (-1);
 		}
-
-		pthread_mutex_lock(&aio_inflight_mtx);
-		aio_inflight++;
-		pthread_mutex_unlock(&aio_inflight_mtx);
 
 		*offset += blocksize;	/* we'll bail out on short read */
 	}
@@ -282,10 +294,12 @@ aio_cb(rbd_completion_t c, void *arg)
 
 	pthread_mutex_lock(&aio_inflight_mtx);
 	if (aio_inflight > 0) {
-		if (--aio_inflight == 0) {
+		aio_inflight--;
+		if (aio_inflight == 0 ||
+		    (maxqlen > 0 && aio_inflight < maxqlen)) {
 			pthread_cond_broadcast(&aio_inflight_cond);
-			if (verbose)
-				write(STDOUT_FILENO, "\n", 1);
+			if (verbose && aio_inflight == 0)
+				write(STDOUT_FILENO, "0\n", 2);
 		}
 	} else
 		write(STDOUT_FILENO, "Oops!\n", 6);
