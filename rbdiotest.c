@@ -299,7 +299,7 @@ aio_cb(rbd_completion_t c, void *arg)
 		    (maxqlen > 0 && aio_inflight < maxqlen)) {
 			pthread_cond_broadcast(&aio_inflight_cond);
 			if (verbose && aio_inflight == 0)
-				write(STDOUT_FILENO, "0\n", 2);
+				write(STDOUT_FILENO, "#\n", 2);
 		}
 	} else
 		write(STDOUT_FILENO, "Oops!\n", 6);
