@@ -223,7 +223,7 @@ aioloop(char *buf, uint64_t *offset)
 			return (-1);
 		}
 
-		*offset += rc;
+		*offset += blocksize;	/* we'll bail out on short read */
 	}
 
 	if (verbose)
