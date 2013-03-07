@@ -183,10 +183,10 @@ dotest()
 	}
 	gettimeofday(&tv, NULL);
 
+	dt = 1000000LL * (tv.tv_sec - tv0.tv_sec) + tv.tv_usec - tv0.tv_usec;
 	printf("Time elapsed: %lld usec\n", dt);
 	printf("Bytes xferred: %"PRIu64"\n", offset);
 
-	dt = 1000000LL * (tv.tv_sec - tv0.tv_sec) + tv.tv_usec - tv0.tv_usec;
 	if (dt > 0)
 		printf("IO rate: %ju byte/s\n",
 		    (uintmax_t)offset * 1000000 / (uintmax_t)dt);
