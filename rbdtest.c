@@ -16,6 +16,7 @@
 long blocksize = 512;
 long count = 10;
 char *imagename;
+int iomode = 'S';
 char *poolname = "rbd";
 int readcache = 0;
 int verbose = 1;
@@ -42,7 +43,7 @@ main(int argc, char **argv)
 	int c;
 	int rc;
 
-	while ((c = getopt(argc, argv, "RWb:c:i:p:w")) != -1) {
+	while ((c = getopt(argc, argv, "RWb:c:i:m:p:w")) != -1) {
 		switch (c) {
 		case 'R':
 			readcache = 1;
@@ -58,6 +59,9 @@ main(int argc, char **argv)
 			break;
 		case 'i':
 			imagename = optarg;
+			break;
+		case 'm':
+			iomode = toupper(optarg[0]);
 			break;
 		case 'p':
 			poolname = optarg;
@@ -164,8 +168,19 @@ dotest()
 		    writemode ? "write" : "read", count, blocksize);
 	offset = 0;
 	gettimeofday(&tv0, NULL);
-	if (syncloop(buf, &offset) < 0)
+	switch (iomode) {
+	case 'A':
+		if (aioloop(buf, &offset) < 0)
+			return (-1);
+		break;
+	case 'S':
+		if (syncloop(buf, &offset) < 0)
+			return (-1);
+		break;
+	default:
+		fprintf(stderr, "Bad IO mode: %c\n", iomode);
 		return (-1);
+	}
 	gettimeofday(&tv, NULL);
 	dt = 1000000LL * (tv.tv_sec - tv0.tv_sec) + tv.tv_usec - tv0.tv_usec;
 	printf("Time elapsed: %lld usec\n", dt);
@@ -216,7 +231,7 @@ aioloop(char *buf, uint64_t *offset)
 void
 aio_cb(rbd_completion_t c, void *arg)
 {
-	(void)arg;
+	(void)arg;	/* unused for now */
 	(void)rbd_aio_get_return_value(c);
 	rbd_aio_release(c);
 	write(STDOUT_FILENO, ".", 1);
