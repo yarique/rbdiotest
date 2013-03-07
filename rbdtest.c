@@ -2,6 +2,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -27,6 +28,9 @@ int writemode = 0;
 rados_t cluster;
 rados_ioctx_t ioctx;
 rbd_image_t ih;
+int aiocnt;
+pthread_cond_t aiocnt_cond;
+pthread_mutex_t aiocnt_mtx;
 
 int dotest(void);
 long getint(const char *s);
@@ -205,6 +209,15 @@ aioloop(char *buf, uint64_t *offset)
 	long i;
 	int rc;
 
+	if (pthread_mutex_init(&aiocnt_mtx, NULL) != 0) {
+		perror("pthread_mutex_init");
+		return (-1);
+	}
+	if (pthread_cond_init(&aiocnt_cond, NULL) != 0) {
+		perror("pthread_cond_init");
+		return (-1);
+	}
+
 	for (i = 0; i < count; i++) {
 		rc = rbd_aio_create_completion(NULL, aio_cb, &c);
 		if (rc < 0) {
@@ -223,12 +236,31 @@ aioloop(char *buf, uint64_t *offset)
 			return (-1);
 		}
 
+		pthread_mutex_lock(&aiocnt_mtx);
+		aiocnt++;
+		pthread_mutex_unlock(&aiocnt_mtx);
+
 		*offset += blocksize;	/* we'll bail out on short read */
 	}
 
 	if (verbose)
 		printf("Now waiting for all AIO to complete\n");
-	rbd_flush(ih);
+#if 1
+	pthread_mutex_lock(&aiocnt_mtx);
+	for (;;) {
+		if (aiocnt < 0) {
+			pthread_mutex_unlock(&aiocnt_mtx);
+			fprintf(stderr, "Oooooops!\n");
+			return (-1);
+		}
+		if (aiocnt == 0)
+			break;
+		pthread_cond_wait(&aiocnt_cond, &aiocnt_mtx);
+	}
+	pthread_mutex_unlock(&aiocnt_mtx);
+#else
+	rbd_flush(ih);		/* DOES NOT WORK AS NEEDED */
+#endif
 	if (verbose)
 		printf("All AIO complete\n");
 
@@ -241,6 +273,15 @@ aio_cb(rbd_completion_t c, void *arg)
 	(void)arg;	/* unused for now */
 	(void)rbd_aio_get_return_value(c);
 	rbd_aio_release(c);
+
+	pthread_mutex_lock(&aiocnt_mtx);
+	if (aiocnt > 0) {
+		if (--aiocnt == 0)
+			pthread_cond_broadcast(&aiocnt_cond);
+	} else
+		write(STDOUT_FILENO, "Oops!\n", 6);
+	pthread_mutex_unlock(&aiocnt_mtx);
+
 	write(STDOUT_FILENO, ".", 1);
 }
 
