@@ -1,9 +1,9 @@
 CFLAGS+=	-Wall -W
 LDLIBS+=	-lrados -lrbd
 
-all:	rbdtest
+all:	rbdiotest
 
 clean:
-	rm rbdtest rbdtest.o
+	rm rbdiotest rbdiotest.o
 
-rbdtest:	rbdtest.o
+rbdiotest:	rbdiotest.o
