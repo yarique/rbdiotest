@@ -29,8 +29,12 @@ rbd_image_t ih;
 
 int dotest(void);
 long getint(const char *s);
-int syncloop(char *buf, uint64_t *offset);
 void usage(void);
+
+void aio_cb(rbd_completion_t c, void *arg);
+
+int aioloop(char *buf, uint64_t *offset);
+int syncloop(char *buf, uint64_t *offset);
 
 int
 main(int argc, char **argv)
@@ -173,6 +177,49 @@ dotest()
 		    dt == 0 ? "infinity" : "negative");
 
 	return (0);
+}
+
+/* asynchronous IO based implementation */
+int
+aioloop(char *buf, uint64_t *offset)
+{
+	rbd_completion_t c;
+	long i;
+	int rc;
+
+	for (i = 0; i < count; i++) {
+		rc = rbd_aio_create_completion(NULL, aio_cb, &c);
+		if (rc < 0) {
+			fprintf(stderr, "create_completion: %s\n",
+			    strerror(-rc));
+			return (-1);
+		}
+
+		if (writemode)
+			rc = rbd_aio_write(ih, *offset, blocksize, buf, c);
+		else
+			rc = rbd_aio_read(ih, *offset, blocksize, buf, c);
+
+		if (rc < 0) {
+			fprintf(stderr, "rbd_aio: %s\n", strerror(-rc));
+			return (-1);
+		}
+
+		*offset += rc;
+	}
+
+	rbd_flush(ih);
+
+	return (0);
+}
+
+void
+aio_cb(rbd_completion_t c, void *arg)
+{
+	(void)arg;
+	(void)rbd_aio_get_return_value(c);
+	rbd_aio_release(c);
+	write(STDOUT_FILENO, ".", 1);
 }
 
 /* synchronous IO based implementation */
