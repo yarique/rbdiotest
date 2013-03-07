@@ -28,9 +28,9 @@ int writemode = 0;
 rados_t cluster;
 rados_ioctx_t ioctx;
 rbd_image_t ih;
-int aiocnt;
-pthread_cond_t aiocnt_cond;
-pthread_mutex_t aiocnt_mtx;
+int aio_inflight;
+pthread_cond_t aio_inflight_cond;
+pthread_mutex_t aio_inflight_mtx;
 
 int dotest(void);
 long getint(const char *s);
@@ -212,11 +212,11 @@ aioloop(char *buf, uint64_t *offset)
 	long i;
 	int rc;
 
-	if (pthread_mutex_init(&aiocnt_mtx, NULL) != 0) {
+	if (pthread_mutex_init(&aio_inflight_mtx, NULL) != 0) {
 		perror("pthread_mutex_init");
 		return (-1);
 	}
-	if (pthread_cond_init(&aiocnt_cond, NULL) != 0) {
+	if (pthread_cond_init(&aio_inflight_cond, NULL) != 0) {
 		perror("pthread_cond_init");
 		return (-1);
 	}
@@ -239,9 +239,9 @@ aioloop(char *buf, uint64_t *offset)
 			return (-1);
 		}
 
-		pthread_mutex_lock(&aiocnt_mtx);
-		aiocnt++;
-		pthread_mutex_unlock(&aiocnt_mtx);
+		pthread_mutex_lock(&aio_inflight_mtx);
+		aio_inflight++;
+		pthread_mutex_unlock(&aio_inflight_mtx);
 
 		*offset += blocksize;	/* we'll bail out on short read */
 	}
@@ -249,18 +249,18 @@ aioloop(char *buf, uint64_t *offset)
 	if (verbose)
 		printf("Now waiting for all AIO to complete\n");
 #if 1
-	pthread_mutex_lock(&aiocnt_mtx);
+	pthread_mutex_lock(&aio_inflight_mtx);
 	for (;;) {
-		if (aiocnt < 0) {
-			pthread_mutex_unlock(&aiocnt_mtx);
+		if (aio_inflight < 0) {
+			pthread_mutex_unlock(&aio_inflight_mtx);
 			fprintf(stderr, "Oooooops!\n");
 			return (-1);
 		}
-		if (aiocnt == 0)
+		if (aio_inflight == 0)
 			break;
-		pthread_cond_wait(&aiocnt_cond, &aiocnt_mtx);
+		pthread_cond_wait(&aio_inflight_cond, &aio_inflight_mtx);
 	}
-	pthread_mutex_unlock(&aiocnt_mtx);
+	pthread_mutex_unlock(&aio_inflight_mtx);
 #else
 	rbd_flush(ih);		/* DOES NOT WORK AS NEEDED */
 #endif
@@ -280,16 +280,16 @@ aio_cb(rbd_completion_t c, void *arg)
 	if (verbose)
 		write(STDOUT_FILENO, ".", 1);
 
-	pthread_mutex_lock(&aiocnt_mtx);
-	if (aiocnt > 0) {
-		if (--aiocnt == 0) {
-			pthread_cond_broadcast(&aiocnt_cond);
+	pthread_mutex_lock(&aio_inflight_mtx);
+	if (aio_inflight > 0) {
+		if (--aio_inflight == 0) {
+			pthread_cond_broadcast(&aio_inflight_cond);
 			if (verbose)
 				write(STDOUT_FILENO, "\n", 1);
 		}
 	} else
 		write(STDOUT_FILENO, "Oops!\n", 6);
-	pthread_mutex_unlock(&aiocnt_mtx);
+	pthread_mutex_unlock(&aio_inflight_mtx);
 }
 
 /* synchronous IO based implementation */
