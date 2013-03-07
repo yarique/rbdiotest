@@ -274,15 +274,17 @@ aio_cb(rbd_completion_t c, void *arg)
 	(void)rbd_aio_get_return_value(c);
 	rbd_aio_release(c);
 
+	write(STDOUT_FILENO, ".", 1);
+
 	pthread_mutex_lock(&aiocnt_mtx);
 	if (aiocnt > 0) {
-		if (--aiocnt == 0)
+		if (--aiocnt == 0) {
 			pthread_cond_broadcast(&aiocnt_cond);
+			write(STDOUT_FILENO, "\n", 1);
+		}
 	} else
 		write(STDOUT_FILENO, "Oops!\n", 6);
 	pthread_mutex_unlock(&aiocnt_mtx);
-
-	write(STDOUT_FILENO, ".", 1);
 }
 
 /* synchronous IO based implementation */
