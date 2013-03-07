@@ -326,8 +326,16 @@ syncloop(char *buf, uint64_t *offset)
 			return (-1);
 		}
 
+		if (verbose) {
+			printf(".");
+			fflush(stdout);
+		}
+
 		*offset += rc;
 	}
+
+	if (verbose)
+		printf("\n");
 
 	return (0);
 }
