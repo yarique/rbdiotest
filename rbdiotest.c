@@ -20,7 +20,7 @@ char *imagename;
 int iomode = 'S';
 char *poolname = "rbd";
 int readcache = 0;
-int verbose = 1;
+int verbose = 0;
 int writecache = 0;
 int writemode = 0;
 
@@ -47,7 +47,7 @@ main(int argc, char **argv)
 	int c;
 	int rc;
 
-	while ((c = getopt(argc, argv, "RWb:c:i:m:p:w")) != -1) {
+	while ((c = getopt(argc, argv, "RWb:c:i:m:p:vw")) != -1) {
 		switch (c) {
 		case 'R':
 			readcache = 1;
@@ -69,6 +69,9 @@ main(int argc, char **argv)
 			break;
 		case 'p':
 			poolname = optarg;
+			break;
+		case 'v':
+			verbose++;
 			break;
 		case 'w':
 			writemode = 1;
