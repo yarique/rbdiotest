@@ -191,10 +191,19 @@ dotest()
 	gettimeofday(&tv0, NULL);
 	switch (iomode) {
 	case 'A':
+		if (verbose) {
+			printf("Async mode loop, max queue length ");
+			if (maxqlen)
+				printf("%ld\n", maxqlen);
+			else
+				printf("unlimited\n");
+		}
 		if (aioloop(buf, &offset) < 0)
 			return (-1);
 		break;
 	case 'S':
+		if (verbose)
+			printf("Sync mode loop\n");
 		if (syncloop(buf, &offset) < 0)
 			return (-1);
 		break;
