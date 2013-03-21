@@ -18,6 +18,7 @@ long blocksize = 512;
 long count = 10;
 char *imagename;
 int iomode = 'S';
+long iosize;
 long maxqlen;
 char *poolname = "rbd";
 int readcache = 0;
@@ -49,7 +50,7 @@ main(int argc, char **argv)
 	int c;
 	int rc;
 
-	while ((c = getopt(argc, argv, "RWb:c:i:m:p:q:tvw")) != -1) {
+	while ((c = getopt(argc, argv, "RWb:c:i:m:p:q:s:tvw")) != -1) {
 		switch (c) {
 		case 'R':
 			readcache = 1;
@@ -74,6 +75,10 @@ main(int argc, char **argv)
 			break;
 		case 'q':
 			maxqlen = getint(optarg);
+			break;
+		case 's':
+			iosize = getint(optarg);
+			count = iosize / blocksize;
 			break;
 		case 't':
 			terse++;
