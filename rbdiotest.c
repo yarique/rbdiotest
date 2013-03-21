@@ -21,6 +21,7 @@ int iomode = 'S';
 long maxqlen;
 char *poolname = "rbd";
 int readcache = 0;
+int terse = 0;
 int verbose = 0;
 int writecache = 0;
 int writemode = 0;
@@ -48,7 +49,7 @@ main(int argc, char **argv)
 	int c;
 	int rc;
 
-	while ((c = getopt(argc, argv, "RWb:c:i:m:p:q:vw")) != -1) {
+	while ((c = getopt(argc, argv, "RWb:c:i:m:p:q:tvw")) != -1) {
 		switch (c) {
 		case 'R':
 			readcache = 1;
@@ -73,6 +74,9 @@ main(int argc, char **argv)
 			break;
 		case 'q':
 			maxqlen = getint(optarg);
+			break;
+		case 't':
+			terse++;
 			break;
 		case 'v':
 			verbose++;
@@ -162,6 +166,7 @@ dotest()
 	long i;
 	long long dt;
 	uint64_t offset;
+	uintmax_t rate;
 
 	buf = malloc(blocksize);
 	if (buf == NULL) {
@@ -195,13 +200,18 @@ dotest()
 	gettimeofday(&tv, NULL);
 
 	dt = 1000000LL * (tv.tv_sec - tv0.tv_sec) + tv.tv_usec - tv0.tv_usec;
-	printf("Time elapsed: %lld usec\n", dt);
-	printf("Bytes xferred: %"PRIu64"\n", offset);
+	if (!terse) {
+		printf("Time elapsed: %lld usec\n", dt);
+		printf("Bytes xferred: %"PRIu64"\n", offset);
+	}
 
-	if (dt > 0)
-		printf("IO rate: %ju byte/s\n",
-		    (uintmax_t)offset * 1000000 / (uintmax_t)dt);
-	else
+	if (dt > 0) {
+		rate = (uintmax_t)offset * 1000000 / (uintmax_t)dt;
+		if (!terse)
+			printf("IO rate: %ju byte/s\n", rate);
+		else
+			printf("%ju\n", rate);
+	} else
 		printf("IO rate would be %s!\n",
 		    dt == 0 ? "infinity" : "negative");
 
