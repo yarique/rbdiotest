@@ -164,7 +164,7 @@ dotest()
 	struct timeval tv, tv0;
 	char *buf;
 	long i;
-	long long dt;
+	intmax_t dt;
 	uint64_t offset;
 	uintmax_t rate;
 
@@ -199,9 +199,10 @@ dotest()
 	}
 	gettimeofday(&tv, NULL);
 
-	dt = 1000000LL * (tv.tv_sec - tv0.tv_sec) + tv.tv_usec - tv0.tv_usec;
+	dt = (intmax_t)1000000LL * (tv.tv_sec - tv0.tv_sec) +
+	    tv.tv_usec - tv0.tv_usec;
 	if (!terse) {
-		printf("Time elapsed: %lld usec\n", dt);
+		printf("Time elapsed: %jd usec\n", dt);
 		printf("Bytes xferred: %"PRIu64"\n", offset);
 	}
 
