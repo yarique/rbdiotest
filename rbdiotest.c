@@ -31,17 +31,34 @@ int writemode = 0;
 rados_t cluster;
 rados_ioctx_t ioctx;
 rbd_image_t ih;
+
 int aio_inflight;
 pthread_cond_t aio_inflight_cond;
 pthread_mutex_t aio_inflight_mtx;
+
+pthread_cond_t aio_queue_cond;
+pthread_mutex_t aio_queue_mtx;
+
+struct queue_entry {
+	struct queue_entry *prev;
+	struct queue_entry *next;
+	void *data;
+};
+
+struct queue {
+	struct queue_entry *head;
+	struct queue_entry *tail;
+} aioqueue;
 
 int dotest(void);
 long getint(const char *s);
 void usage(void);
 
 void aio_cb(rbd_completion_t c, void *arg);
+void *queue_pickup(void *dummy);
 
 int aioloop(char *buf, uint64_t *offset);
+int queuedloop(char *buf, uint64_t *offset);
 int syncloop(char *buf, uint64_t *offset);
 
 int
@@ -201,6 +218,17 @@ dotest()
 		if (aioloop(buf, &offset) < 0)
 			return (-1);
 		break;
+	case 'Q':
+		if (verbose) {
+			printf("Queued mode loop, max queue length ");
+			if (maxqlen)
+				printf("%ld\n", maxqlen);
+			else
+				printf("unlimited\n");
+		}
+		if (queuedloop(buf, &offset) < 0)
+			return (-1);
+		break;
 	case 'S':
 		if (verbose)
 			printf("Sync mode loop\n");
@@ -329,6 +357,158 @@ aio_cb(rbd_completion_t c, void *arg)
 	} else
 		write(STDOUT_FILENO, "Oops!\n", 6);
 	pthread_mutex_unlock(&aio_inflight_mtx);
+}
+
+/* queued IO based implementation */
+int
+queuedloop(char *buf, uint64_t *offset)
+{
+	struct queue_entry *qp;
+	pthread_t qthr;
+	rbd_completion_t c;
+	long i;
+	int rc;
+
+	if (pthread_mutex_init(&aio_inflight_mtx, NULL) != 0) {
+		perror("pthread_mutex_init");
+		return (-1);
+	}
+	if (pthread_cond_init(&aio_inflight_cond, NULL) != 0) {
+		perror("pthread_cond_init");
+		return (-1);
+	}
+	if (pthread_mutex_init(&aio_queue_mtx, NULL) != 0) {
+		perror("pthread_mutex_init");
+		return (-1);
+	}
+	if (pthread_cond_init(&aio_queue_cond, NULL) != 0) {
+		perror("pthread_cond_init");
+		return (-1);
+	}
+	if (pthread_create(&qthr, NULL, queue_pickup, NULL) != 0) {
+		perror("pthread_create");
+		return (-1);
+	}
+
+	for (i = 0; i < count; i++) {
+		rc = rbd_aio_create_completion(NULL, NULL, &c);
+		if (rc < 0) {
+			fprintf(stderr, "create_completion: %s\n",
+			    strerror(-rc));
+			return (-1);
+		}
+
+		qp = malloc(sizeof(*qp));
+		if (qp == NULL) {
+			fprintf(stderr, "Out of memory\n");
+			return (-1);
+		}
+
+		pthread_mutex_lock(&aio_inflight_mtx);
+		if (maxqlen > 0) {
+			for (;;) {
+				if (aio_inflight < maxqlen)
+					break;
+				pthread_cond_wait(&aio_inflight_cond,
+				    &aio_inflight_mtx);
+			}
+		}
+		aio_inflight++;
+		pthread_mutex_unlock(&aio_inflight_mtx);
+
+		if (writemode)
+			rc = rbd_aio_write(ih, *offset, blocksize, buf, c);
+		else
+			rc = rbd_aio_read(ih, *offset, blocksize, buf, c);
+
+		if (rc < 0) {
+			fprintf(stderr, "rbd_aio: %s\n", strerror(-rc));
+			return (-1);
+		}
+
+		*offset += blocksize;	/* we'll bail out on short read */
+
+		pthread_mutex_lock(&aio_queue_mtx);
+		qp->prev = aioqueue.tail;
+		qp->next = NULL;
+		qp->data = c;
+		if (aioqueue.tail != NULL)
+			aioqueue.tail->next = qp;
+		aioqueue.tail = qp;
+		if (aioqueue.head == NULL)
+			aioqueue.head = qp;
+		pthread_cond_broadcast(&aio_queue_cond);
+		pthread_mutex_unlock(&aio_queue_mtx);
+	}
+
+	if (verbose)
+		printf("Now waiting for all AIO to complete\n");
+#if 1
+	pthread_mutex_lock(&aio_inflight_mtx);
+	for (;;) {
+		if (aio_inflight < 0) {
+			pthread_mutex_unlock(&aio_inflight_mtx);
+			fprintf(stderr, "Oooooops!\n");
+			return (-1);
+		}
+		if (aio_inflight == 0)
+			break;
+		pthread_cond_wait(&aio_inflight_cond, &aio_inflight_mtx);
+	}
+	pthread_mutex_unlock(&aio_inflight_mtx);
+#else
+	rbd_flush(ih);		/* DOES NOT WORK AS NEEDED */
+#endif
+	if (verbose)
+		printf("All AIO complete\n");
+
+	return (0);
+}
+
+void *
+queue_pickup(void *dummy)
+{
+	struct queue_entry *qp;
+	rbd_completion_t c;
+
+	(void)dummy;	/* unused */
+
+	for (;;) {
+		pthread_mutex_lock(&aio_queue_mtx);
+		for (;;) {
+			if (aioqueue.head != NULL)
+				break;
+			pthread_cond_wait(&aio_queue_cond, &aio_queue_mtx);
+		}
+
+		qp = aioqueue.head;
+		aioqueue.head = qp->next;
+		if (aioqueue.head != NULL)
+			aioqueue.head->prev = NULL;
+		else
+			aioqueue.tail = NULL;
+		pthread_mutex_unlock(&aio_queue_mtx);
+
+		c = qp->data;
+		free(qp);
+
+		(void)rbd_aio_get_return_value(c);
+		rbd_aio_release(c);
+
+		pthread_mutex_lock(&aio_inflight_mtx);
+		if (aio_inflight > 0) {
+			aio_inflight--;
+			if (aio_inflight == 0 ||
+			    (maxqlen > 0 && aio_inflight < maxqlen)) {
+				pthread_cond_broadcast(&aio_inflight_cond);
+				if (verbose && aio_inflight == 0)
+					write(STDOUT_FILENO, "#\n", 2);
+			}
+		} else
+			write(STDOUT_FILENO, "Oops!\n", 6);
+		pthread_mutex_unlock(&aio_inflight_mtx);
+	}
+	return (NULL);
 }
 
 /* synchronous IO based implementation */
