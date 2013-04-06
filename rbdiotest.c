@@ -495,6 +495,9 @@ queue_pickup(void *dummy)
 		(void)rbd_aio_get_return_value(c);
 		rbd_aio_release(c);
 
+		if (verbose)
+			write(STDOUT_FILENO, ".", 1);
+
 		pthread_mutex_lock(&aio_inflight_mtx);
 		if (aio_inflight > 0) {
 			aio_inflight--;
