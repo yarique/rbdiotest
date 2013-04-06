@@ -32,7 +32,8 @@ rados_t cluster;
 rados_ioctx_t ioctx;
 rbd_image_t ih;
 
-int aio_inflight;
+int aio_inflight = 0;
+int stopping = 0;
 pthread_cond_t aio_inflight_cond;
 pthread_mutex_t aio_inflight_mtx;
 
@@ -452,8 +453,9 @@ queuedloop(char *buf, uint64_t *offset)
 
 	if (verbose)
 		printf("Now waiting for all AIO to complete\n");
-#if 1
+
 	pthread_mutex_lock(&aio_inflight_mtx);
+	stopping = 1;
 	for (;;) {
 		if (aio_inflight < 0) {
 			pthread_mutex_unlock(&aio_inflight_mtx);
@@ -465,12 +467,14 @@ queuedloop(char *buf, uint64_t *offset)
 		pthread_cond_wait(&aio_inflight_cond, &aio_inflight_mtx);
 	}
 	pthread_mutex_unlock(&aio_inflight_mtx);
-#else
-	rbd_flush(ih);		/* DOES NOT WORK AS NEEDED */
-#endif
+
 	if (verbose)
 		printf("All AIO complete\n");
 
+	if (pthread_join(qthr, NULL) != 0) {
+		perror("pthread_join");
+		return (-1);
+	}
 	if (pthread_mutex_destroy(&aio_inflight_mtx) != 0) {
 		perror("pthread_mutex_destroy");
 		return (-1);
@@ -533,6 +537,10 @@ queue_pickup(void *dummy)
 				pthread_cond_broadcast(&aio_inflight_cond);
 				if (verbose && aio_inflight == 0)
 					write(STDOUT_FILENO, "#\n", 2);
+			}
+			if (stopping && aio_inflight == 0) {
+				pthread_mutex_unlock(&aio_inflight_mtx);
+				pthread_exit(NULL);
 			}
 		} else
 			write(STDOUT_FILENO, "Oops!\n", 6);
