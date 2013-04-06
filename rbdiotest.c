@@ -332,6 +332,15 @@ aioloop(char *buf, uint64_t *offset)
 	if (verbose)
 		printf("All AIO complete\n");
 
+	if (pthread_mutex_destroy(&aio_inflight_mtx) != 0) {
+		perror("pthread_mutex_destroy");
+		return (-1);
+	}
+	if (pthread_cond_destroy(&aio_inflight_cond) != 0) {
+		perror("pthread_cond_destroy");
+		return (-1);
+	}
+
 	return (0);
 }
 
@@ -461,6 +470,23 @@ queuedloop(char *buf, uint64_t *offset)
 #endif
 	if (verbose)
 		printf("All AIO complete\n");
+
+	if (pthread_mutex_destroy(&aio_inflight_mtx) != 0) {
+		perror("pthread_mutex_destroy");
+		return (-1);
+	}
+	if (pthread_cond_destroy(&aio_inflight_cond) != 0) {
+		perror("pthread_cond_destroy");
+		return (-1);
+	}
+	if (pthread_mutex_destroy(&aio_queue_mtx) != 0) {
+		perror("pthread_mutex_destroy");
+		return (-1);
+	}
+	if (pthread_cond_destroy(&aio_queue_cond) != 0) {
+		perror("pthread_cond_destroy");
+		return (-1);
+	}
 
 	return (0);
 }
