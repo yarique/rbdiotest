@@ -492,6 +492,7 @@ queue_pickup(void *dummy)
 		c = qp->data;
 		free(qp);
 
+		(void)rbd_aio_wait_for_complete(c);
 		(void)rbd_aio_get_return_value(c);
 		rbd_aio_release(c);
 
